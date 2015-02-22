@@ -1,7 +1,7 @@
 /****************************************************************************
  File:			switch001.c
 
- Version:		0.03
+ Version:		0.05
 
  Description:	Random number and switch test
 
@@ -28,6 +28,8 @@ char playerStar;
 
 unsigned int  slowdown[]= {3500, 4000, 5000, 7500, 8000, 10000, 11000, 15000, 20000, 30000,
 						   40000, 50000, 55000, 58000, 65000, 0};
+
+void stateList(void);		// Prototype
 
 void delay(unsigned int d)
 {
@@ -64,6 +66,12 @@ unsigned char getRandomList(void)
 } /* end getRandomList */
 
 void main(void)
+{
+	stateList();
+
+} /* end main */
+
+void stateList(void)
 {
 	/* Init player selection to invalid */
 	unsigned char playerList = 0xff;
@@ -102,4 +110,4 @@ void main(void)
 			delay(slowdown[a++]);
 		}
 	}
-} /* end main */
+} /* end stateList */
