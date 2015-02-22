@@ -1,7 +1,8 @@
 /****************************************************************************
  File:			switch001.c
 
- Version:		0.01
+ Version:		0.02
+
  Description:	Random number and switch test
 
  Created on:	2015-02-22
@@ -18,7 +19,12 @@
 #define	HIGH	1
 #define LOW		0
 
-#define	EOF		0xff
+#define	EOL		0xff
+
+char playerList;
+char playerStar;
+
+int  slowdown[]= {5000, 7500, 10000, 15000, 20000, 30000};
 
 void delay(int n)
 {
@@ -27,27 +33,25 @@ void delay(int n)
 	for (t=0; t<n; t++);
 }
 
-char playerList;
-char playerStar;
-
 void main(void)
 {
 	/* Init player selection to invalid */
-	playerList = 0xff;
-	playerStar = 0xff;
+	char playerList = 0xff;
+	char playerStar = 0xff;
 
 	int	rnd=0;
 	
-	char random, x;
+	unsigned char random, x;
 
-	char rndList[] = {7, 5, 3, 6, 2, 4, 1, 0, 6, 3, 6, 4, 2, 6, 4, 0, 1, 2, 6, 
-					  4, 6, 3, 2, 0, 3, 5, 7, 2, 6, 3, 7, 1, 5, 0, 3, 5, 2, 4,
-					 EOF};
+	unsigned char rndList[] = {7, 5, 3,	6, 2, 4, 1, 0, 6, 3, 6, 4, 2, 6, 4, 0, 1, 2, 6, 
+					  		   4, 6, 3, 2, 0, 3, 5, 7, 2, 6, 3, 7, 1, 5, 0, 3, 5, 2, 4,
+					  		   EOL};
+
 
 	/* Turn off all LEDs */
-	P0 = HIGH;
-	P1 = HIGH;
-	P2 = HIGH;
+	P0 = 0xff;
+	P1 = 0xff;
+	P2 = 0xff;
 
 	/* Set Pin ready for Input */
 	P14 = HIGH;
@@ -61,14 +65,15 @@ void main(void)
 
 		while (P14 == LOW)
 		{
-			random = rndList[rnd++];
-			if (rndList[rnd] == EOF) rnd = 0;
+			random = rndList[rnd];
+			rnd++;
+			if (rndList[rnd] == EOL) rnd = 0;
 	
 			x = 1 << random;
 	
 			P0 = ~x;
 			
-			delay(200);
+			delay(3000);
 		}
 		playerList = random;
 	}
