@@ -1,11 +1,11 @@
 /****************************************************************************
  File:			switch001.c
 
- Version:		0.05
+ Version:		0.06
 
  Description:	Random number and switch test
 
- Created on:	2015-02-22
+ Created on:	2015-02-23
  Created by:	April
 
  Board:			RichMCU RZ-51V2.0
