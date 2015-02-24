@@ -1,7 +1,7 @@
 /****************************************************************************
  File:			switch001.c
 
- Version:		0.15
+ Version:		0.13
 
  Description:	Random number and switch test
 
@@ -33,6 +33,7 @@
 
 #define	DELAY_STD	2500
 
+unsigned char playerList, playerStar;
 static unsigned int a=0;
 unsigned int slowdown[]= { 3500, 3600, 3800, 4200, 5000, 6600, 
 							   9800, 16200, 29000, 54600, 0};
@@ -128,9 +129,9 @@ unsigned char getRandom(unsigned char choice){
 
 
 ///****LIST***///////////////////////////
-unsigned char stateList(void){
+void stateList(void){
 	/* Init player selection to invalid */
-	unsigned char playerList = 0xff;
+	playerList = 0xff;
 
 	while (listPin == HIGH);			/* Key Off */
 
@@ -147,7 +148,6 @@ unsigned char stateList(void){
 		delay(slowdown[a]);
 		a++;
 	}
-	return playerList;
 
 	while (starPin != LOW);
 	
@@ -155,9 +155,9 @@ unsigned char stateList(void){
 
 
 ////****STAR***//////////////////////////////
-unsigned char stateStar(void){
+void stateStar(void){
 	/* Init player selection to invalid */
-	unsigned char playerStar = 0xff;
+	playerStar = 0xff;
 
 	while (starPin == HIGH);			/* Key Off */
 
@@ -174,7 +174,6 @@ unsigned char stateStar(void){
 		delay(slowdown[a]);
 		a++;
 	}
-	return playerStar;
   	
 	while (matchPin != LOW);
 //	while ((yesPin != LOW) || (noPin != LOW));
@@ -200,16 +199,14 @@ void lose(void){
 } /* end lose */
 
 
-void stateMatch(unsigned char list, star){
-	list = stateList();
-	star = stateStar();
+void stateMatch(){
 
-//	if(((list == star) && (yesPin == LOW)) || ((list != star) && (noPin == LOW)))
+//	if(((playerList == star) && (yesPin == LOW)) || ((playerList != playerStar) && (noPin == LOW)))
 //		 win();
 //	else lose();
 
 	/**TEMPORARY - not enough buttons*****/
-	if((list != star) && (matchPin == LOW)) win();
+	if((playerList != playerStar) && (matchPin == LOW)) win();
 	else									lose();
 
 	while (resetPin != LOW);
