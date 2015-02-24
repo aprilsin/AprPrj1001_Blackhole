@@ -1,7 +1,7 @@
 /****************************************************************************
  File:			switch001.c
 
- Version:		0.13
+ Version:		0.14
 
  Description:	Random number and switch test
 
@@ -66,7 +66,7 @@ void ledBlink(unsigned int times, space){
 }
 
 
-void initialize(void){
+void reset(void){
 	/* Turn off all LEDs */
 	P0 = 0xff;
 	P1 = 0xff;
@@ -158,6 +158,9 @@ void stateList(void){
 void stateStar(void){
 	/* Init player selection to invalid */
 	playerStar = 0xff;
+	
+	/* Init for slowdown delay */
+	a=0;
 
 	while (starPin == HIGH);			/* Key Off */
 
@@ -185,17 +188,20 @@ void stateStar(void){
 void win(void){
 	char n;
 
-	for(n=0; n<5; n++){			  //blink LED
+	for(n=0; n<10; n++){			  //blink LED
 			P0 = 0xff;
-			delay(500);
+			delay(50000);
 			P0 = 0;
-			delay(500);
+			delay(50000);
 	}
 } /* end win */
 
 
 void lose(void){
-	 P0 = ledOn(1 << getRandom(3));
+	while(getRandom(3) != EOL){
+		P0 = ledOn(1 << getRandom(3));
+	 	delay(10000);
+	}
 } /* end lose */
 
 
@@ -206,8 +212,8 @@ void stateMatch(){
 //	else lose();
 
 	/**TEMPORARY - not enough buttons*****/
-	if((playerList != playerStar) && (matchPin == LOW)) win();
-	else									lose();
+//	if((playerList != playerStar) && (matchPin == LOW)) win();
+	if((playerList != playerStar) && (matchPin == LOW))	lose();
 
 	while (resetPin != LOW);
 } /* end stateMatch */
@@ -215,9 +221,9 @@ void stateMatch(){
 
 void main(void){
 	for(;;){
-		initialize();
+		reset();
 		stateList();
 		stateStar();
-//		stateMatch();
+		stateMatch();
 	}
 } /* end main */
