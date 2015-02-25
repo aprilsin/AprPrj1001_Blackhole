@@ -1,7 +1,7 @@
 /****************************************************************************
  File:			switch001.c
 
- Version:		0.15
+ Version:		0.15.1
 
  Description:	Random number and switch test
 
@@ -20,10 +20,10 @@
 #define starPin		P15
 
 //Temporary
-#define resetPin	listPin
+#define resetPin	P17
 
-#define yesPin		P16	
-#define noPin		P17
+//#define yesPin		P16	
+//#define noPin		P17
 
 #define	HIGH		1
 #define LOW			0
@@ -75,8 +75,8 @@ void reset(void){
 	/* Set Pin ready for Input */
 	listPin	 = HIGH;
 	starPin	 = HIGH;
-	yesPin 	 = HIGH;
-	noPin	 = HIGH;
+	P16 	 = HIGH;
+	P17	 = HIGH;
 } /* reset */
 	
 
@@ -120,7 +120,6 @@ unsigned char getRandom(unsigned char choice){
 
 		random = rndLose[rnd];
 		rnd++;
-		if (rndLose[rnd] == EOL) showAnswer();
 	}
 		
 	return random;
@@ -195,6 +194,8 @@ void lose(void){
 		P0 = ledOn(1 << getRandom(3));
 	 	delay(10000);
 	}
+	
+	showAnswer();
 } /* end lose */
 
 
@@ -217,21 +218,21 @@ void stateMatchTemp(void){
 }
 
 
-void stateMatch(){
-	/**TEMPORARY - not enough buttons*****/
-	if((playerList != playerStar) && (noPin == LOW)) win();
-	if((playerList != playerStar) && (yesPin == LOW))	lose();
-
-	if (((playerList == playerStar) && (yesPin == LOW)) || 
-		((playerList != playerStar) && (noPin == LOW)))
-		 win();
-
-	else{ 
-		lose();
-	}
-	while (resetPin != LOW);
-
-} /* end stateMatch */
+//void stateMatch(){
+//	/**TEMPORARY - not enough buttons*****/
+//	if((playerList != playerStar) && (noPin == LOW)) win();
+//	if((playerList != playerStar) && (yesPin == LOW))	lose();
+//
+//	if (((playerList == playerStar) && (yesPin == LOW)) || 
+//		((playerList != playerStar) && (noPin == LOW)))
+//		 win();
+//
+//	else{ 
+//		lose();
+//	}
+//	while (resetPin != LOW);
+//
+//} /* end stateMatch */
 
 
 void main(void){
