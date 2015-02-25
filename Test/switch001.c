@@ -1,7 +1,7 @@
 /****************************************************************************
  File:			switch001.c
 
- Version:		0.15.1
+ Version:		0.16
 
  Description:	Random number and switch test
 
@@ -18,38 +18,41 @@
 
 #define listPin		P14
 #define starPin		P15
+#define yesPin		P16	
+#define noPin		P17
 
 //Temporary
-#define resetPin	P17
-
-//#define yesPin		P16	
-//#define noPin		P17
+#define resetPin	listPin
 
 #define	HIGH		1
 #define LOW			0
 
 #define	EOL			0xff
-
 #define	DELAY_STD	2500
 
 unsigned char playerList, playerStar;
 static unsigned int a=0;
+
 unsigned int slowdown[]= { 3500, 3600, 3800, 4200, 5000, 6600, 
 							   9800, 16200, 29000, 54600, 0};
 
-void showAnswer(void);			//Prototype
+//Prototype
+unsigned char getRandom(unsigned char choice);
+void win(void);
+void lose(void);
+void showAnswer(void);
 
+
+/*********************************PROGRAM**********************************/
 void delay(unsigned int d){
 	unsigned int t;
 
 	for (t=0; t<d; t++);
-
 } /* end delay */
 
 
 unsigned char ledOn(unsigned char led){
 	return ~led;
-
 } /* end ledOn */
 
 
@@ -123,7 +126,6 @@ unsigned char getRandom(unsigned char choice){
 	}
 		
 	return random;
- 	
 } /* end getRandom */
 
 
@@ -149,7 +151,6 @@ void stateList(void){
 	}
 
 	while (starPin != LOW);
-	
 } /* end stateList */
 
 
@@ -176,16 +177,13 @@ void stateStar(void){
 		delay(slowdown[a]);
 		a++;
 	}
- 
-//	while ((yesPin != LOW) || (noPin != LOW));
-	
+ 	while ((yesPin != LOW) || (noPin != LOW));
 } /* end stateStar */
 
 
 /////***MATCH***///////////////////////
 void win(void){
 	ledBlink(10, 50000);
-
 } /* end win */
 
 
@@ -194,7 +192,9 @@ void lose(void){
 		P0 = ledOn(1 << getRandom(3));
 	 	delay(10000);
 	}
-	
+	P0 = ledOn(0);
+	delay(5000);
+
 	showAnswer();
 } /* end lose */
 
@@ -210,29 +210,26 @@ void showAnswer(void){
 	}
 } /* end showAnswer */
 
+
 void stateMatchTemp(void){
 	if(playerList == playerStar) win();
 	else						 lose();
 
 	while (resetPin != LOW);
-}
+} /* end stateMatchTemp */
 
 
-//void stateMatch(){
-//	/**TEMPORARY - not enough buttons*****/
-//	if((playerList != playerStar) && (noPin == LOW)) win();
-//	if((playerList != playerStar) && (yesPin == LOW))	lose();
-//
-//	if (((playerList == playerStar) && (yesPin == LOW)) || 
-//		((playerList != playerStar) && (noPin == LOW)))
-//		 win();
-//
-//	else{ 
-//		lose();
-//	}
-//	while (resetPin != LOW);
-//
-//} /* end stateMatch */
+void stateMatch(){
+	if (((playerList == playerStar) && (yesPin == LOW)) || 
+		((playerList != playerStar) && (noPin == LOW)))
+		 win();
+
+	else{ 
+		lose();
+	}
+
+	while (resetPin != LOW);
+} /* end stateMatch */
 
 
 void main(void){
