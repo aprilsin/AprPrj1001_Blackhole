@@ -1,7 +1,7 @@
 /****************************************************************************
  File:			switch001.c
 
- Version:		0.20
+ Version:		0.21
 
  Description:	Random number and switch test
 
@@ -18,6 +18,11 @@
 
 #define	RICHMCU
 // #undef	RICHMCU
+
+#define TIMER_ON		1
+#define	TIMER_OFF		0
+
+#define	TIMER_RUN		TIMER_OFF
 
 #define	LOW				0
 #define	HIGH			1
@@ -39,7 +44,7 @@
 #define	ledStatusGreen	P37
 
 #ifdef	RICHMCU
-#define	portList		P1
+#define	portList		P0
 #define	portStar		P0
 #define	portSwitch		P1
 
@@ -340,10 +345,10 @@ void initTimer0(void) {
 	TH0=(65536-50000) >> 8;  	//50,000 timer counts
 	TL0=(65536-50000) & 0xff; 	//50,000 timer counts
 
-	ET0 = 1; 			//Enable Timer0 Interrupt
-	EA  = 1;			//Enable all interrupts
+	ET0 = 1; 					//Enable Timer0 Interrupt
+	EA  = 1;					//Enable all interrupts
 
-	TR0 = 1;			//Start Timer0
+	TR0 = TIMER_RUN;			//Start Timer0
 } /* initTimer */
 
 
@@ -358,6 +363,7 @@ void lose(void){
 	audioPlay(SFX_LOSE);
 	flashAnswer();
 } /* end lose */
+	   
 
 void main(void){	
 	unsigned char match;
@@ -394,5 +400,5 @@ void isrTimer0(void) interrupt 1 using 2 {
 	TH0=(65536-50000) >> 8;		//50,000 timer counts
 	TL0=(65536-50000) & 0xff;	//50,000 timer counts
 	
-	TR0 = 1;					//Enable Timer0 again		
+	TR0 = TIMER_RUN;			//Enable Timer0 again		
 } /* isrTimer0 */
