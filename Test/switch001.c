@@ -1,7 +1,7 @@
 /****************************************************************************
  File:			switch001.c
 
- Version:		0.16
+ Version:		0.20
 
  Description:	Random number and switch test
 
@@ -12,36 +12,87 @@
 
  Jumpers:		Remove JPSMG - Disable 7-Segment LEDs
 
-				将 JPSMG 数码管控制跳线拔掉使数码管停止工作。
+				将 JPSMG 数码管控制跳线拔掉使数码管停	止工作。
 ****************************************************************************/
 #include <STC89.H>
 
-#define listPin		P14
-#define starPin		P15
-#define yesPin		P16	
-#define noPin		P17
+#define	RICHMCU
+// #undef	RICHMCU
 
-//Temporary
-#define resetPin	listPin
+#define	LOW				0
+#define	HIGH			1
 
-#define	HIGH		1
-#define LOW			0
+#define	EOL				0xff
+#define	NO_PLAYER		0xff
 
-#define	EOL			0xff
-#define	DELAY_STD	2500
+#define	LED_ON			0
+#define	LED_OFF			1
+#define	LED_PORT_OFF	0xff
 
-unsigned char playerList, playerStar;
-static unsigned int a=0;
+#define	KEY_ON			0
+#define	KEY_OFF			1
 
-unsigned int slowdown[]= { 3500, 3600, 3800, 4200, 5000, 6600, 
-							   9800, 16200, 29000, 54600, 0};
+#define	DELAY_STD		2500
+#define	DELAY_KEYBOUNCE	10
 
-//Prototype
+#define	ledStatusYellow	P36
+#define	ledStatusGreen	P37
+
+#ifdef	RICHMCU
+#define	portList		P1
+#define	portStar		P0
+#define	portSwitch		P1
+
+#define listKey			P14
+#define starKey			P15
+#define yesKey			P16		
+#define noKey			P17
+#define	ansKey			P10
+#define	demoKey			P11
+
+#else
+
+#define	portList		P2
+#define	portStar		P0
+#define	portSwitch		P1
+
+#define listKey			P10
+#define starKey			P11
+#define yesKey			P12
+#define noKey			P13
+#define	ansKey			P14
+#define	demoKey			P15
+
+#endif
+
+#define	RND_LIST		1
+#define	RND_STAR		2
+#define	RND_ANS			3
+
+#define	WIN				1
+#define	LOSE			0
+
+#define	SFX_BKG_MUSIC	0
+#define	SFX_KEY_CLICK	1
+#define	SFX_LIST_START	11
+#define	SFX_LIST_SLOWDN	12
+#define	SFX_STAR_START	21
+#define	SFX_STAR_SLOWDN	22
+#define	SFX_WIN			81
+#define	SFX_LOSE		82
+
+unsigned int isrTimer0Cnt;
+
+unsigned char playerPickedList;
+unsigned char playerPickedStar;
+
+unsigned int delaySlowdown[]= { 3500,  3600,  3800,  4200, 5000, 6600, 
+						  		9800, 16200, 29000, 54600, 0};
+
+//Prototypes
 unsigned char getRandom(unsigned char choice);
-void win(void);
-void lose(void);
-void showAnswer(void);
-
+void audioPlay(unsigned char sfx);
+void audioStop(void);
 
 /*********************************PROGRAM**********************************/
 void delay(unsigned int d){
@@ -50,77 +101,83 @@ void delay(unsigned int d){
 	for (t=0; t<d; t++);
 } /* end delay */
 
+void delay1ms(void)   //误差 -0.651041666667us
+{
+    unsigned char a,b;
+
+    for(b=102;b>0;b--)
+        for(a=3;a>0;a--);
+
+} /* delay1ms */
+
+void delayms(unsigned int timeMS)
+{
+	unsigned int t;
+
+	for (t=0; t<timeMS; t++)
+		delay1ms();
+
+} /* end delayms */
+
 
 unsigned char ledOn(unsigned char led){
+
 	return ~led;
 } /* end ledOn */
 
 
-void ledBlink(unsigned int times, space){
-	unsigned int t;
+//void ledBlink(unsigned int times, space){
+//	unsigned int t;
+//
+//	for (t=0; t<times; t++){
+//		P0 = 0xff;
+//		delay(space);
+//
+//		P0 = ledOn(0xff);
+//		delay(space);
+//	}
+//} /* end ledBlink */
 
-	for (t=0; t<times; t++){
-		P0 = 0xff;
-		delay(space);
-
-		P0 = ledOn(0xff);
-		delay(space);
-	}
-} /* end ledBlink */
-
-
-void reset(void){
-	/* Turn off all LEDs */
-	P0 = 0xff;
-	P1 = 0xff;
-	P2 = 0xff;
-
-	/* Set Pin ready for Input */
-	listPin	 = HIGH;
-	starPin	 = HIGH;
-	P16 	 = HIGH;
-	P17	 = HIGH;
-} /* reset */
-	
 
 /******RANDOM****///////////////////////////
 unsigned char getRandom(unsigned char choice){
 	static unsigned int	rnd=0;
 	unsigned char random;
 
-	if(choice == 1){
-		unsigned char rndList[] = { 
+	/* Store data into ROM area */
+	code const unsigned char rndList[] = { 
 								6, 4, 0, 7, 6, 4, 2, 7, 3, 0, 5, 1, 5, 6, 5, 4, 5, 7, 4, 1,
 								3, 4, 1, 2, 4, 0, 5, 0, 5, 7, 3, 1, 6, 3, 0, 2, 3, 5, 0, 3,
-//								6, 0, 4, 3, 6, 2, 0, 1, 5, 6, 4, 0, 7, 3, 6, 2, 3, 6, 2, 0,
-//								7, 0, 4, 1, 5, 0, 3, 4, 2, 5, 7, 5, 1, 7, 6, 5, 4, 6, 7, 4,
-//								6, 7, 0, 1, 6, 4, 5, 6, 5, 7, 0, 4, 5, 3, 2, 5, 2, 4, 5, 7,
+								6, 0, 4, 3, 6, 2, 0, 1, 5, 6, 4, 0, 7, 3, 6, 2, 3, 6, 2, 0,
+								7, 0, 4, 1, 5, 0, 3, 4, 2, 5, 7, 5, 1, 7, 6, 5, 4, 6, 7, 4,
+								6, 7, 0, 1, 6, 4, 5, 6, 5, 7, 0, 4, 5, 3, 2, 5, 2, 4, 5, 7,
 					  		    EOL};
+
+	code const unsigned char rndStar[]={
+								6, 7, 0, 1, 6, 4, 5, 6, 5, 7, 0, 4, 5, 3, 2, 5, 2, 4, 5, 7,
+								7, 0, 4, 1, 5, 0, 3, 4, 2, 5, 7, 5, 1, 7, 6, 5, 4, 6, 7, 4,
+		 						6, 4, 0, 7, 6, 4, 2, 7, 3, 0, 5, 1, 5, 6, 5, 4, 5, 7, 4, 1,
+								3, 4, 1, 2, 4, 0, 5, 0, 5, 7, 3, 1, 6, 3, 0, 2, 3, 5, 0, 3,
+								6, 0, 4, 3, 6, 2, 0, 1, 5, 6, 4, 0, 7, 3, 6, 2, 3, 6, 2, 0,
+					  		    EOL};
+
+	code const unsigned char rndLose[]={
+								3, 4, 1, 2, 4, 0, 5, 0, 5, 7, 3, 1, 6, 3, 0, 2, 3, 5, 0, 3,
+								6, 0, 4, 3, 6, 2, 0, 1, 5, 6, 4, 0, 7, 3, 6, 2, 3, 6, 2, 0,
+								EOL};	
+	
+	if(choice == 1){
 		random = rndList[rnd];
 		rnd++;
 		if (rndList[rnd] == EOL) rnd = 0;		
 	}
 
 	if(choice == 2){
-		unsigned char rndStar[] = {
-//		 						6, 4, 0, 7, 6, 4, 2, 7, 3, 0, 5, 1, 5, 6, 5, 4, 5, 7, 4, 1,
-								3, 4, 1, 2, 4, 0, 5, 0, 5, 7, 3, 1, 6, 3, 0, 2, 3, 5, 0, 3,
-//								6, 0, 4, 3, 6, 2, 0, 1, 5, 6, 4, 0, 7, 3, 6, 2, 3, 6, 2, 0,
-								7, 0, 4, 1, 5, 0, 3, 4, 2, 5, 7, 5, 1, 7, 6, 5, 4, 6, 7, 4,
-//								6, 7, 0, 1, 6, 4, 5, 6, 5, 7, 0, 4, 5, 3, 2, 5, 2, 4, 5, 7,
-					  		    EOL};
-
 		random = rndStar[rnd];
 		rnd++;
 		if (rndStar[rnd] == EOL) rnd = 0;
 	}
-
 	else{
-		unsigned char rndLose[] = {
-								3, 4, 1, 2, 4, 0, 5, 0, 5, 7, 3, 1, 6, 3, 0, 2, 3, 5, 0, 3,
-								6, 0, 4, 3, 6, 2, 0, 1, 5, 6, 4, 0, 7, 3, 6, 2, 3, 6, 2, 0,
-								EOL};
-
 		random = rndLose[rnd];
 		rnd++;
 	}
@@ -128,115 +185,214 @@ unsigned char getRandom(unsigned char choice){
 	return random;
 } /* end getRandom */
 
+void audioStop(void) {
+} /* audioStop */
+
+void audioPlay(unsigned char sfx) {
+} /* audioPlay */
+
+unsigned char getKey(unsigned char key) {
+	unsigned char keyStatus;
+
+	do {
+		keyStatus = key;
+
+		delayms(DELAY_KEYBOUNCE);
+
+	} while (key != keyStatus);
+	
+	return keyStatus;
+
+} /* keyIsPressed */
+
+
+void initAll(void) {
+	/* Timer0 controlled blinking Status LEDs */
+	ledStatusYellow = LED_ON;
+	ledStatusGreen  = LED_PORT_OFF;
+
+ 	/* Turn off all LEDs */
+	P0 = LED_PORT_OFF;
+	P1 = LED_PORT_OFF;
+	P2 = LED_PORT_OFF;
+
+	/* Set Pin ready for Input */
+	listKey	 = HIGH;
+	starKey	 = HIGH;
+	yesKey	 = HIGH;
+	noKey	 = HIGH;
+	ansKey	 = HIGH;
+	demoKey  = HIGH;
+	
+	/* Init player selection to invalid */
+	playerPickedList = NO_PLAYER;
+
+	/* Stop Audio */
+	audioStop();
+
+} /* initAll */
+
 
 ///****LIST***///////////////////////////
-void stateList(void){
-	/* Init player selection to invalid */
-	playerList = 0xff;
+void stateList(void) {
+	while (getKey(listKey) == KEY_OFF);					// listKey Off, wait for the listKey pressed
 
-	while (listPin == HIGH);			/* Key Off */
+	audioPlay(SFX_KEY_CLICK);							// listKey is ON now
+   	audioPlay(SFX_LIST_START);
 
-	while (listPin == LOW){		   		/* Key On */
-		P0 = ledOn(1 << getRandom(1));  //get random no. from List array
+	while (getKey(listKey) == KEY_ON) {					// listKey is still On
+		portList = ledOn(1 << getRandom(RND_LIST));     // Get random no. from List array
 		
-		delay(DELAY_STD);	 			//delay(2000)
+		delay(DELAY_STD);
+	}				  									// listKey Off now
+} /* stateList */
+
+
+void stateListPost(void) {
+	int a;
+   	a = 0;
+    while (delaySlowdown[a]!= EOL) {
+		audioPlay(SFX_LIST_SLOWDN);
+		playerPickedList = getRandom(RND_LIST);			// Get random no. from List array
+		portList = ledOn(1 << playerPickedList);	    // Show picked Name of Constellation
+
+		delay(delaySlowdown[a++]);
 	}
-
-    while (slowdown[a]!= 0){
-		playerList = getRandom(1);		//get random no. from List array
-		P0 = ledOn(1 << playerList);
-
-		delay(slowdown[a]);
-		a++;
-	}
-
-	while (starPin != LOW);
-} /* end stateList */
+} /* end stateListPost */
 
 
 ////****STAR***//////////////////////////////
-void stateStar(void){
-	/* Init player selection to invalid */
-	playerStar = 0xff;
-	
-	/* Init for slowdown delay */
-	a=0;
+void stateStar(void) {
+	while (getKey(starKey) == KEY_OFF);					// starKey Off, wait for starKey pressed
 
-	while (starPin == HIGH);			/* Key Off */
-
-	while (starPin == LOW){		   		/* Key On */
-		P0 = ledOn(1 << getRandom(2));  //get random no. from the Star array
+	audioPlay(SFX_KEY_CLICK);							// starKey is ON now
+   	audioPlay(SFX_STAR_START);
+											  	
+	while (getKey(starKey) == KEY_ON) {		  		 	// starKey is still ON
+		portStar = ledOn(1 << getRandom(RND_STAR));	    // Get random no. from the Star array
 		
-		delay(DELAY_STD);	 			//delay(2000)
-	}
-
-    while (slowdown[a]!= 0){		    
-		playerStar = getRandom(2);		//get random no. from the Star array
-		P0 = ledOn(1 << playerStar);
-
-		delay(slowdown[a]);
-		a++;
-	}
- 	while ((yesPin != LOW) || (noPin != LOW));
+		delay(DELAY_STD);
+	}													// starKey Off
 } /* end stateStar */
 
 
+void stateStarPost(void) {
+	int a;
+
+    a = 0;
+	while (delaySlowdown[a]!= EOL) {
+		audioPlay(SFX_STAR_SLOWDN);		    
+		playerPickedStar = getRandom(RND_STAR);			// Get random no. from the Star array
+		portStar = ledOn(1 << playerPickedStar); 		// Show picked Constellation
+
+		delay(delaySlowdown[a++]);
+	}
+} /* end stateStar */
+
+
+unsigned char stateMatch(void) {
+	unsigned char match;
+	unsigned char yKey, nKey;
+
+	do {
+		yKey = getKey(yesKey);
+		nKey = getKey(noKey);	
+	} while ( ((yKey == KEY_OFF) && (nKey == KEY_OFF)) ||
+		      ((yKey == KEY_ON)  && (nKey == KEY_ON) ));			// Wait until either Yes/No key pressed		
+    
+	audioPlay(SFX_KEY_CLICK);
+
+	if ( ((playerPickedList == playerPickedStar) && (yKey == KEY_ON)) || 
+		 ((playerPickedList != playerPickedStar) && (nKey == KEY_ON)))
+		 	match=WIN;
+	else	match=LOSE;
+
+	return match;
+
+//	while (demoKey != KEY_ON);
+} /* end stateMatch */
+
+
+void flashAnswer(void) {
+	int n;
+
+	for (n=1; n<5; n++) {
+		portList = LED_PORT_OFF;
+		portStar = LED_PORT_OFF;
+																	  
+
+		delay(DELAY_STD);
+		portList = ledOn(1 << playerPickedList);		// Show Name of Constellation
+		portStar = ledOn(1 << playerPickedStar); 		// Show picked Constellation
+	}
+ } /* end flashAnswer */
+
+
+void initTimer0(void) {
+	isrTimer0Cnt = 0;  	//isrTimer0 interrupt calling counter
+
+	EA = 0;				//Disable all inerrupts
+
+	TMOD = T0_M1;		//Set Timer0 to Mode 1
+
+	TR0 =  0;			//Disable Timer0
+
+	TH0=(65536-50000) >> 8;  	//50,000 timer counts
+	TL0=(65536-50000) & 0xff; 	//50,000 timer counts
+
+	ET0 = 1; 			//Enable Timer0 Interrupt
+	EA  = 1;			//Enable all interrupts
+
+	TR0 = 1;			//Start Timer0
+} /* initTimer */
+
+
 /////***MATCH***///////////////////////
-void win(void){
-	ledBlink(10, 50000);
+void win(void) {
+	audioPlay(SFX_WIN);
+	flashAnswer();
 } /* end win */
 
 
 void lose(void){
-	while(getRandom(3) != EOL){
-		P0 = ledOn(1 << getRandom(3));
-	 	delay(10000);
-	}
-	P0 = ledOn(0);
-	delay(5000);
-
-	showAnswer();
+	audioPlay(SFX_LOSE);
+	flashAnswer();
 } /* end lose */
 
+void main(void){	
+	unsigned char match;
 
-void showAnswer(void){
-	char n;
+	initTimer0(); 					// Star timer 0 for status LEDs
 
-	for(n=0; n<10; n++){
-		P0 = ledOn(1 << playerList);
-		delay(10000);
-		P0 = ledOn(0);
-		delay(10000);
-	}
-} /* end showAnswer */
+	for(;;) {		
+		initAll(); 					// Dark all LEDs and get port ready for switch I/P
+		stateList();				// Wait for the Player to pick the Name of Constellation
+		stateListPost();		   	// Player picked the Name of Constellation
 
+		stateStar();				// Wait for the Player to pick the Constellation
+		stateStarPost();			// Player picked the Constellation
 
-void stateMatchTemp(void){
-	if(playerList == playerStar) win();
-	else						 lose();
+		 match = stateMatch();		// Match or not? User picks Yes/No
 
-	while (resetPin != LOW);
-} /* end stateMatchTemp */
-
-
-void stateMatch(){
-	if (((playerList == playerStar) && (yesPin == LOW)) || 
-		((playerList != playerStar) && (noPin == LOW)))
-		 win();
-
-	else{ 
-		lose();
-	}
-
-	while (resetPin != LOW);
-} /* end stateMatch */
-
-
-void main(void){
-	for(;;){
-		reset();
-		stateList();
-		stateStar();
-		stateMatchTemp();
+		if (match == WIN) win();
+		else			  lose();
 	}
 } /* end main */
+
+
+void isrTimer0(void) interrupt 1 using 2 {
+	isrTimer0Cnt++;
+
+	if (isrTimer0Cnt >= 10) {
+		ledStatusYellow = ~ledStatusGreen;
+		ledStatusGreen  = ~ledStatusGreen;
+		isrTimer0Cnt=0;
+	}
+
+ 	TR0 = 0;					//Disable Timer0
+	
+	TH0=(65536-50000) >> 8;		//50,000 timer counts
+	TL0=(65536-50000) & 0xff;	//50,000 timer counts
+	
+	TR0 = 1;					//Enable Timer0 again		
+} /* isrTimer0 */
