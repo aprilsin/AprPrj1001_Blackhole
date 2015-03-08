@@ -16,13 +16,10 @@
 ****************************************************************************/
 #include <STC89.H>
 
-#define	RICHMCU
-// #undef	RICHMCU
+//#define	DEBUG
+//#define	RICHMCU
 
-#define TIMER_ON		1
-#define	TIMER_OFF		0
-
-#define	TIMER_RUN		TIMER_OFF
+#define	TIMER_RUN		1					// 1: ON 0: OFF
 
 #define	LOW				0
 #define	HIGH			1
@@ -52,11 +49,9 @@
 #define starKey			P15
 #define yesKey			P16		
 #define noKey			P17
-#define	ansKey			P10
-#define	demoKey			P11
-
+#define	ansKey			P16
+#define	demoKey			P17
 #else
-
 #define	portList		P2
 #define	portStar		P0
 #define	portSwitch		P1
@@ -67,15 +62,15 @@
 #define noKey			P13
 #define	ansKey			P14
 #define	demoKey			P15
-
 #endif
+
 
 #define	RND_LIST		1
 #define	RND_STAR		2
 #define	RND_ANS			3
 
-#define	WIN				1
-#define	LOSE			0
+#define	PLAYER_WIN		1
+#define	PLAYER_LOSE		0
 
 #define	SFX_BKG_MUSIC	0
 #define	SFX_KEY_CLICK	1
@@ -86,18 +81,29 @@
 #define	SFX_WIN			81
 #define	SFX_LOSE		82
 
+
+/******************************************
+ Global Variables
+ ******************************************/
 unsigned int isrTimer0Cnt;
+
+unsigned char demoKeyStatus;
 
 unsigned char playerPickedList;
 unsigned char playerPickedStar;
 
 unsigned int delaySlowdown[]= { 3500,  3600,  3800,  4200, 5000, 6600, 
-						  		9800, 16200, 29000, 54600, 0};
+						  		9800, 16200, 29000, 54600, EOL};
 
-//Prototypes
+
+
+/******************************************
+ Prototypes
+ ******************************************/
 unsigned char getRandom(unsigned char choice);
 void audioPlay(unsigned char sfx);
 void audioStop(void);
+
 
 /*********************************PROGRAM**********************************/
 void delay(unsigned int d){
@@ -172,29 +178,38 @@ unsigned char getRandom(unsigned char choice){
 								EOL};	
 	
 	if(choice == 1){
-		random = rndList[rnd];
-		rnd++;
+		random = rndList[rnd++];
 		if (rndList[rnd] == EOL) rnd = 0;		
 	}
 
 	if(choice == 2){
-		random = rndStar[rnd];
-		rnd++;
+		random = rndStar[rnd++];
 		if (rndStar[rnd] == EOL) rnd = 0;
 	}
 	else{
-		random = rndLose[rnd];
-		rnd++;
+		random = rndLose[rnd++];
+		if (rndLose[rnd] == EOL) rnd = 0;
 	}
 		
 	return random;
 } /* end getRandom */
 
+
 void audioStop(void) {
 } /* audioStop */
 
+
 void audioPlay(unsigned char sfx) {
+#ifdef DEBUG
+	if (sfx == SFX_WIN)  P1=0xF0;
+	if (sfx == SFX_LOSE) P1=0xF3;
+#endif
 } /* audioPlay */
+
+
+void audioPlayLoop(unsigned char song) {
+} /* audioPlayLoop */
+
 
 unsigned char getKey(unsigned char key) {
 	unsigned char keyStatus;
@@ -214,7 +229,7 @@ unsigned char getKey(unsigned char key) {
 void initAll(void) {
 	/* Timer0 controlled blinking Status LEDs */
 	ledStatusYellow = LED_ON;
-	ledStatusGreen  = LED_PORT_OFF;
+	ledStatusGreen  = LED_OFF;
 
  	/* Turn off all LEDs */
 	P0 = LED_PORT_OFF;
@@ -228,12 +243,17 @@ void initAll(void) {
 	noKey	 = HIGH;
 	ansKey	 = HIGH;
 	demoKey  = HIGH;
-	
+
+	demoKeyStatus = KEY_OFF;
+		
 	/* Init player selection to invalid */
 	playerPickedList = NO_PLAYER;
 
 	/* Stop Audio */
 	audioStop();
+
+	/* Play Music */
+	audioPlayLoop(SFX_BKG_MUSIC);
 
 } /* initAll */
 
@@ -255,6 +275,7 @@ void stateList(void) {
 
 void stateListPost(void) {
 	int a;
+
    	a = 0;
     while (delaySlowdown[a]!= EOL) {
 		audioPlay(SFX_LIST_SLOWDN);
@@ -309,30 +330,38 @@ unsigned char stateMatch(void) {
 
 	if ( ((playerPickedList == playerPickedStar) && (yKey == KEY_ON)) || 
 		 ((playerPickedList != playerPickedStar) && (nKey == KEY_ON)))
-		 	match=WIN;
-	else	match=LOSE;
+		 	match = PLAYER_WIN;
+	else	match = PLAYER_LOSE;
 
 	return match;
 
-//	while (demoKey != KEY_ON);
 } /* end stateMatch */
 
 
 void flashAnswer(void) {
-	int n;
+	portList = LED_PORT_OFF;
+	portStar = LED_PORT_OFF;
+																  
+	delayms(200);
 
-	for (n=1; n<5; n++) {
-		portList = LED_PORT_OFF;
-		portStar = LED_PORT_OFF;
-																	  
+	portList = ledOn(1 << playerPickedList);		// Show Name of Constellation
+	portStar = ledOn(1 << playerPickedList); 		// Show picked Constellation
 
-		delay(DELAY_STD);
-		portList = ledOn(1 << playerPickedList);		// Show Name of Constellation
-		portStar = ledOn(1 << playerPickedStar); 		// Show picked Constellation
-	}
- } /* end flashAnswer */
+	delayms(500);
+} /* end flashAnswer */
 
 
+/////***MATCH***///////////////////////
+void playerWin(void) {
+	audioPlay(SFX_WIN);
+} /* end playerWin */
+
+
+void playerLose(void){
+	audioPlay(SFX_LOSE);
+} /* end playerLose */
+
+	   
 void initTimer0(void) {
 	isrTimer0Cnt = 0;  	//isrTimer0 interrupt calling counter
 
@@ -352,36 +381,27 @@ void initTimer0(void) {
 } /* initTimer */
 
 
-/////***MATCH***///////////////////////
-void win(void) {
-	audioPlay(SFX_WIN);
-	flashAnswer();
-} /* end win */
-
-
-void lose(void){
-	audioPlay(SFX_LOSE);
-	flashAnswer();
-} /* end lose */
-	   
-
 void main(void){	
-	unsigned char match;
-
-	initTimer0(); 					// Star timer 0 for status LEDs
+	initTimer0(); 					// Star timer 0 for status LED
 
 	for(;;) {		
 		initAll(); 					// Dark all LEDs and get port ready for switch I/P
 		stateList();				// Wait for the Player to pick the Name of Constellation
 		stateListPost();		   	// Player picked the Name of Constellation
-
 		stateStar();				// Wait for the Player to pick the Constellation
 		stateStarPost();			// Player picked the Constellation
 
-		 match = stateMatch();		// Match or not? User picks Yes/No
+		if (stateMatch() == PLAYER_WIN) 	playerWin();
+		else			  					playerLose();
 
-		if (match == WIN) win();
-		else			  lose();
+#ifdef	DEBUG
+		while (getKey(starKey) == KEY_OFF)	// Wait for reset the game...
+#else
+		while (getKey(demoKey) == KEY_OFF)	// Wait for reset the game... 
+#endif
+		{
+			flashAnswer();
+		}
 	}
 } /* end main */
 
@@ -390,7 +410,7 @@ void isrTimer0(void) interrupt 1 using 2 {
 	isrTimer0Cnt++;
 
 	if (isrTimer0Cnt >= 10) {
-		ledStatusYellow = ~ledStatusGreen;
+		ledStatusYellow = ~ledStatusYellow;
 		ledStatusGreen  = ~ledStatusGreen;
 		isrTimer0Cnt=0;
 	}
