@@ -1,11 +1,11 @@
 /****************************************************************************
  File:			switch001.c
 
- Version:		0.21
+ Version:		0.22
 
  Description:	Random number and switch test
 
- Created on:	2015-02-25
+ Created on:	2015-03-09
  Created by:	April
 
  Board:			RichMCU RZ-51V2.0
@@ -76,6 +76,7 @@
 #define	SFX_KEY_CLICK	1
 #define	SFX_LIST_START	11
 #define	SFX_LIST_SLOWDN	12
+#define SFX_LIST_SPEEDUP13
 #define	SFX_STAR_START	21
 #define	SFX_STAR_SLOWDN	22
 #define	SFX_WIN			81
@@ -95,6 +96,8 @@ unsigned char playerPickedStar;
 unsigned int delaySlowdown[]= { 3500,  3600,  3800,  4200, 5000, 6600, 
 						  		9800, 16200, 29000, 54600, EOL};
 
+unsigned int delaySpeedUp[]= {	54600, 29000, 16200, 9800, 6600, 5000,
+								4200, 3800, 3600, 3500, EOL};
 
 
 /******************************************
@@ -112,6 +115,7 @@ void delay(unsigned int d){
 	for (t=0; t<d; t++);
 } /* end delay */
 
+
 void delay1ms(void)   //Îó²î -0.651041666667us
 {
     unsigned char a,b;
@@ -120,6 +124,7 @@ void delay1ms(void)   //Îó²î -0.651041666667us
         for(a=3;a>0;a--);
 
 } /* delay1ms */
+
 
 void delayms(unsigned int timeMS)
 {
@@ -358,7 +363,22 @@ void playerWin(void) {
 
 
 void playerLose(void){
+	int a;
+	unsigned char ansList;
+
 	audioPlay(SFX_LOSE);
+
+    a = 0;
+	while (delaySpeedUp[a]!= EOL) {
+		audioPlay(SFX_LIST_SPEEDUP);		
+		    
+		ansList = getRandom(RND_ANS);			// Get random no. from the Lose array
+		portList = ledOn(1 << ansList); 		// Show randomed Constellation Name
+
+		delay(delaySpeedUp[a++]);
+	}
+	portList = ledOn(0x00);
+	
 } /* end playerLose */
 
 	   
