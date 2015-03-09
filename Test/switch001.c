@@ -76,7 +76,7 @@
 #define	SFX_KEY_CLICK	1
 #define	SFX_LIST_START	11
 #define	SFX_LIST_SLOWDN	12
-#define SFX_LIST_SPEEDUP13
+#define SFX_LIST_SPEEDUP	13
 #define	SFX_STAR_START	21
 #define	SFX_STAR_SLOWDN	22
 #define	SFX_WIN			81
