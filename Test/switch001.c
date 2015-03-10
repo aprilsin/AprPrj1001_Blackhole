@@ -1,7 +1,7 @@
 /****************************************************************************
  File:			switch001.c
 
- Version:		0.22
+ Version:		0.30
 
  Description:	Random number and switch test
 
@@ -16,10 +16,10 @@
 ****************************************************************************/
 #include <STC89.H>
 
-//#define	DEBUG
-//#define	RICHMCU
+#define	DEBUG
+#define	RICHMCU
 
-#define	TIMER_RUN		1					// 1: ON 0: OFF
+#define	TIMER_RUN		0					// 1: ON 0: OFF
 
 #define	LOW				0
 #define	HIGH			1
@@ -39,6 +39,8 @@
 
 #define	ledStatusYellow	P36
 #define	ledStatusGreen	P37
+
+#define	audioBusy		P17
 
 #ifdef	RICHMCU
 #define	portList		P0
@@ -67,20 +69,20 @@
 
 #define	RND_LIST		1
 #define	RND_STAR		2
-#define	RND_ANS			3
+#define	RND_LOSE		3
 
 #define	PLAYER_WIN		1
 #define	PLAYER_LOSE		0
 
-#define	SFX_BKG_MUSIC	0
-#define	SFX_KEY_CLICK	1
-#define	SFX_LIST_START	11
-#define	SFX_LIST_SLOWDN	12
+#define	SFX_BKG_MUSIC		0
+#define	SFX_KEY_CLICK		1
+#define	SFX_LIST_START		11
+#define	SFX_LIST_SLOWDN		12
 #define SFX_LIST_SPEEDUP	13
-#define	SFX_STAR_START	21
-#define	SFX_STAR_SLOWDN	22
-#define	SFX_WIN			81
-#define	SFX_LOSE		82
+#define	SFX_STAR_START		21
+#define	SFX_STAR_SLOWDN		22
+#define	SFX_WIN				81
+#define	SFX_LOSE			82
 
 
 /******************************************
@@ -88,7 +90,7 @@
  ******************************************/
 unsigned int isrTimer0Cnt;
 
-unsigned char demoKeyStatus;
+unsigned char serialRxData;				// Data received from Serial Port
 
 unsigned char playerPickedList;
 unsigned char playerPickedStar;
@@ -104,12 +106,13 @@ unsigned int delaySpeedUp[]= {	54600, 29000, 16200, 9800, 6600, 5000,
  Prototypes
  ******************************************/
 unsigned char getRandom(unsigned char choice);
+void serialTx(unsigned char txdata);
 void audioPlay(unsigned char sfx);
 void audioStop(void);
 
 
 /*********************************PROGRAM**********************************/
-void delay(unsigned int d){
+void delay(unsigned int d) {
 	unsigned int t;
 
 	for (t=0; t<d; t++);
@@ -136,27 +139,14 @@ void delayms(unsigned int timeMS)
 } /* end delayms */
 
 
-unsigned char ledOn(unsigned char led){
+unsigned char ledOn(unsigned char led) {
 
 	return ~led;
 } /* end ledOn */
 
 
-//void ledBlink(unsigned int times, space){
-//	unsigned int t;
-//
-//	for (t=0; t<times; t++){
-//		P0 = 0xff;
-//		delay(space);
-//
-//		P0 = ledOn(0xff);
-//		delay(space);
-//	}
-//} /* end ledBlink */
-
-
 /******RANDOM****///////////////////////////
-unsigned char getRandom(unsigned char choice){
+unsigned char getRandom(unsigned char choice) {
 	static unsigned int	rnd=0;
 	unsigned char random;
 
@@ -182,12 +172,12 @@ unsigned char getRandom(unsigned char choice){
 								6, 0, 4, 3, 6, 2, 0, 1, 5, 6, 4, 0, 7, 3, 6, 2, 3, 6, 2, 0,
 								EOL};	
 	
-	if(choice == 1){
+	if(choice == 1) {
 		random = rndList[rnd++];
 		if (rndList[rnd] == EOL) rnd = 0;		
 	}
 
-	if(choice == 2){
+	if(choice == 2) {
 		random = rndStar[rnd++];
 		if (rndStar[rnd] == EOL) rnd = 0;
 	}
@@ -199,21 +189,69 @@ unsigned char getRandom(unsigned char choice){
 	return random;
 } /* end getRandom */
 
+unsigned char audioIsBusy(void) {
+	return ~audioBusy;			 	// 1: Busy  0: Ready for command
+} /* audioIsBusy */
 
-void audioStop(void) {
-} /* audioStop */
+
+/* MP3 module command format:
+	0x7E: Start Code
+	0xFF: Version
+	0x06: Length of data excluding Start Code, Checksum and End Code
+	CMD:  1 Byte of command
+	FBK:  1: Feedback info required   0: Silent
+	PAR1: High Byte of Data
+	PAR2: Low  Byte of Data
+	CHK:  Checksum
+	0xEF: End of Data
+
+*/
+void audioSendCmd(unsigned char * audioCmd) {
+	unsigned char checksum=0;
+	int i;
+
+	for (i=2; i<8; i++) {
+		checksum += audioCmd[i];
+	}
+	audioCmd[8] = ~checksum;
+
+	for (i=0; i<10; i++) {		// Send command to MP3 module
+		serialTx(audioCmd[i]);
+	}
+} /* audioSendCmd */
 
 
-void audioPlay(unsigned char sfx) {
+void audioPause(void) {
+	static unsigned char audioCmdPause[]={0x7e, 0xff, 0x06, 0x0e, 00, 00, 00, 0xfe, 0xfe, 0xef};
+	audioSendCmd(audioCmdPause);
+} /* audioPause */
+
+
+void audioPlay(unsigned char audiotrack) {
+	static unsigned char audioCmdPlay[]={0x7e, 0xff, 0x06, 0x03, 00, 01, 01, 0xfe, 0xfe, 0xef};
+
+	audioCmdPlay[6] = audiotrack;
+	audioSendCmd(audioCmdPlay);
+
 #ifdef DEBUG
-	if (sfx == SFX_WIN)  P1=0xF0;
-	if (sfx == SFX_LOSE) P1=0xF3;
+	if (audiotrack == SFX_WIN)  P1=0xF0;
+	if (audiotrack == SFX_LOSE) P1=0xF3;
 #endif
 } /* audioPlay */
 
 
-void audioPlayLoop(unsigned char song) {
+void audioPlayLoop(unsigned char audiotrack) {
+	static unsigned char audioCmdPlayLoop[]={0x7e, 0xff, 0x06, 0x03, 00, 01, 01, 0xfe, 0xfe, 0xef};
+
+	audioCmdPlayLoop[6] = audiotrack;
+	audioSendCmd(audioCmdPlayLoop);
 } /* audioPlayLoop */
+
+
+void initAudio(void) {	
+	/* Stop Audio */
+	audioStop();
+} /* initAudio */
 
 
 unsigned char getKey(unsigned char key) {
@@ -228,7 +266,40 @@ unsigned char getKey(unsigned char key) {
 	
 	return keyStatus;
 
-} /* keyIsPressed */
+} /* getKey */
+
+
+void serialTx(unsigned char txdata) {
+	SBUF = txdata;			// Send data to Serial Port
+	while (TI != 1);		// Wait until data transmitted
+	TI = 0;					// Reset Transmit Flag
+} /* serialTx */
+
+
+void initSerial(void) {
+	/** Setup TMOD=0x20 */
+	TMOD = 0x20;
+
+	/** Setup SCON=0x50 **/
+	SM0 = 0;				// Serial port in Mode 1
+	SM1 = 1;
+	SM2 = 0;
+	REN = 1;				// Enable Serial Port Receive
+	TB8 = 0;				// 8-bit data Tx
+	RB8 = 0;				// 8-bit data Rx
+	TI  = 0;				// Clear Transmit Interrupt Flag
+	RI	= 0;				// Clear Receive  Interrupt Flag
+
+	TH1 = 0xfd;				// X'tal=11.0592MHz 9600baud
+	TL1 = 0xfd;
+
+	/** Setup PCON=0x00 **/
+	PCON = 0x00;
+
+	ES = 1; 				// Enable Serial Interrupt
+
+	TR1 = 1;				// Enable Timer 1 as baud rate generator
+} /* initSerial */
 
 
 void initAll(void) {
@@ -248,17 +319,12 @@ void initAll(void) {
 	noKey	 = HIGH;
 	ansKey	 = HIGH;
 	demoKey  = HIGH;
-
-	demoKeyStatus = KEY_OFF;
 		
 	/* Init player selection to invalid */
 	playerPickedList = NO_PLAYER;
 
-	/* Stop Audio */
-	audioStop();
-
-	/* Play Music */
-	audioPlayLoop(SFX_BKG_MUSIC);
+//	/* Play Music */
+//	audioPlayLoop(SFX_BKG_MUSIC);
 
 } /* initAll */
 
@@ -268,7 +334,8 @@ void stateList(void) {
 	while (getKey(listKey) == KEY_OFF);					// listKey Off, wait for the listKey pressed
 
 	audioPlay(SFX_KEY_CLICK);							// listKey is ON now
-   	audioPlay(SFX_LIST_START);
+	while (audioIsBusy());								// Sound Effect finished?
+   	audioPlayLoop(SFX_LIST_START);
 
 	while (getKey(listKey) == KEY_ON) {					// listKey is still On
 		portList = ledOn(1 << getRandom(RND_LIST));     // Get random no. from List array
@@ -297,6 +364,7 @@ void stateStar(void) {
 	while (getKey(starKey) == KEY_OFF);					// starKey Off, wait for starKey pressed
 
 	audioPlay(SFX_KEY_CLICK);							// starKey is ON now
+	while (audioIsBusy());								// Sound Effect finished?
    	audioPlay(SFX_STAR_START);
 											  	
 	while (getKey(starKey) == KEY_ON) {		  		 	// starKey is still ON
@@ -332,6 +400,7 @@ unsigned char stateMatch(void) {
 		      ((yKey == KEY_ON)  && (nKey == KEY_ON) ));			// Wait until either Yes/No key pressed		
     
 	audioPlay(SFX_KEY_CLICK);
+	while (audioIsBusy());											// Sound Effect finished?
 
 	if ( ((playerPickedList == playerPickedStar) && (yKey == KEY_ON)) || 
 		 ((playerPickedList != playerPickedStar) && (nKey == KEY_ON)))
@@ -362,7 +431,7 @@ void playerWin(void) {
 } /* end playerWin */
 
 
-void playerLose(void){
+void playerLose(void) {
 	int a;
 	unsigned char ansList;
 
@@ -372,7 +441,7 @@ void playerLose(void){
 	while (delaySpeedUp[a]!= EOL) {
 		audioPlay(SFX_LIST_SPEEDUP);		
 		    
-		ansList = getRandom(RND_ANS);			// Get random no. from the Lose array
+		ansList = getRandom(RND_LOSE);			// Get random no. from the Lose array
 		portList = ledOn(1 << ansList); 		// Show randomed Constellation Name
 
 		delay(delaySpeedUp[a++]);
@@ -395,14 +464,27 @@ void initTimer0(void) {
 	TL0=(65536-50000) & 0xff; 	//50,000 timer counts
 
 	ET0 = 1; 					//Enable Timer0 Interrupt
-	EA  = 1;					//Enable all interrupts
 
 	TR0 = TIMER_RUN;			//Start Timer0
 } /* initTimer */
 
+void interruptDisable(void) {
+	EA = 0;						// Disable Interrupts
+} /* interruptDisable */
 
-void main(void){	
+
+void interruptEnable(void) {
+	EA = 1;						// Enable Interrupts
+} /* InetrruptEnable */
+
+
+void main(void) {
+	interruptDisable();				// Disable All Interrupts
+		
 	initTimer0(); 					// Star timer 0 for status LED
+	initSerial();				    // Setup Serial Port
+	initAudio();					// Initialize MP3 module
+	interruptEnable();				// Enable All Interrupts
 
 	for(;;) {		
 		initAll(); 					// Dark all LEDs and get port ready for switch I/P
@@ -426,7 +508,19 @@ void main(void){
 } /* end main */
 
 
-void isrTimer0(void) interrupt 1 using 2 {
+void isrSerial(void) interrupt 4 using 2 {
+	if (RI == 1) {				// Receive somthing from Serial Port
+		RI = 0;					// Clear Serial Port Receive Flag
+		serialRxData = SBUF;	// Get data from Serial Port
+	}
+	
+	if (TI == 1) {				// Serial Port data transmitted
+		TI = 0;					// Clear Serial Port Transmit Flag
+	}
+} /* isrSerial */
+
+
+void isrTimer0(void) interrupt 1 using 3 {
 	isrTimer0Cnt++;
 
 	if (isrTimer0Cnt >= 10) {
@@ -442,3 +536,5 @@ void isrTimer0(void) interrupt 1 using 2 {
 	
 	TR0 = TIMER_RUN;			//Enable Timer0 again		
 } /* isrTimer0 */
+
+										 
