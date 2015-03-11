@@ -74,17 +74,17 @@
 #define	PLAYER_LOSE		0
 
 #define	SFX_BKG_MUSIC		0
-#define	SFX_KEY_CLICK		4
-#define	SFX_KEY_CLICK2		6
-#define	SFX_KEY_CLICK3		8
-#define	SFX_LIST_START		17
-#define	SFX_LIST_SLOWDN		17
-#define SFX_LIST_SPEEDUP	24
-#define	SFX_STAR_START		32
-#define	SFX_STAR_SLOWDN		17
-#define	SFX_SHOW_ANS		2
-#define	SFX_WIN				2
-#define	SFX_LOSE			1
+#define	SFX_KEY_CLICK		1
+#define	SFX_KEY_CLICK2		2
+#define	SFX_KEY_CLICK3		3
+#define	SFX_LIST_START		5
+#define	SFX_LIST_SLOWDN		8
+#define SFX_LIST_SPEEDUP	8
+#define	SFX_STAR_START		5
+#define	SFX_STAR_SLOWDN		8
+#define	SFX_SHOW_ANS		4
+#define	SFX_LOSE			7
+#define	SFX_WIN				6
 
 
 /******************************************
